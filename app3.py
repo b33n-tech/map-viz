@@ -1,12 +1,13 @@
 import streamlit as st
 import geopandas as gpd
 import pandas as pd
+import numpy as np
 import folium
 from branca.colormap import linear
 from streamlit_folium import st_folium
 
 st.set_page_config(layout="wide")
-st.title("🎨 Carte interactive - Alsace par commune avec données Excel")
+st.title("Carte Alsace - communes colorées avec échelle logarithmique")
 
 @st.cache_data
 def load_communes_geojson():
@@ -17,7 +18,7 @@ def load_communes_geojson():
     combined = pd.concat([gdf_67, gdf_68], ignore_index=True)
     combined['nom'] = combined['nom'].str.strip()
     combined['code'] = combined['code'].astype(str)
-    return gpd.GeoDataFrame(combined)
+    return combined
 
 gdf = load_communes_geojson()
 
@@ -29,25 +30,20 @@ uploaded_file = st.file_uploader(
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file)
 
-    # Vérification colonnes
     if not {'Ville', 'Niveau'}.issubset(df.columns):
         st.error("Le fichier doit contenir les colonnes 'Ville' et 'Niveau'")
         st.stop()
 
-    # Normalisation noms villes (trim + minuscules)
+    # Normaliser noms villes
     df['Ville_norm'] = df['Ville'].str.strip().str.lower()
     gdf['nom_norm'] = gdf['nom'].str.strip().str.lower()
 
-    # On garde uniquement la colonne utile dans df
-    df = df[['Ville_norm', 'Niveau']]
-
-    # Agréger si plusieurs lignes par ville (ex: prendre max ou sum)
-    df_agg = df.groupby('Ville_norm').agg({'Niveau':'max'}).reset_index()
-
-    # Merge GeoDataFrame avec df
-    merged = gdf.merge(df_agg, left_on='nom_norm', right_on='Ville_norm', how='left')
-
+    # Fusion commune + valeur
+    merged = gdf.merge(df[['Ville_norm', 'Niveau']], left_on='nom_norm', right_on='Ville_norm', how='left')
     merged['Niveau'] = merged['Niveau'].fillna(0)
+
+    # Transformation log1p pour lisser la coloration
+    merged['Niveau_log'] = np.log1p(merged['Niveau'])
 
     palette_dict = {
         "YlOrRd": linear.YlOrRd_09,
@@ -65,12 +61,12 @@ if uploaded_file is not None:
 
     m = folium.Map(location=[48.5, 7.5], zoom_start=9, tiles="cartodbpositron")
 
-    colormap = palette_dict[palette].scale(merged['Niveau'].min(), merged['Niveau'].max()).to_step(n=n_classes)
+    colormap = palette_dict[palette].scale(merged['Niveau_log'].min(), merged['Niveau_log'].max()).to_step(n=n_classes)
 
     folium.GeoJson(
         merged,
         style_function=lambda feature: {
-            "fillColor": colormap(feature["properties"]["Niveau"]),
+            "fillColor": colormap(feature["properties"]["Niveau_log"]),
             "color": "black",
             "weight": 0.5,
             "fillOpacity": 0.7,
@@ -78,7 +74,7 @@ if uploaded_file is not None:
         tooltip=folium.GeoJsonTooltip(fields=["nom", "Niveau"], aliases=["Commune", "Niveau"]),
     ).add_to(m)
 
-    colormap.caption = "Niveau"
+    colormap.caption = "Niveau (échelle logarithmique)"
     colormap.add_to(m)
 
     st_folium(m, width=1000, height=700)
