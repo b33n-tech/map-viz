@@ -10,8 +10,8 @@ st.title("🎨 Carte interactive - Communes du Bas-Rhin et Haut-Rhin (Alsace)")
 
 @st.cache_data
 def load_geojsons():
-    url_67 = "https://raw.githubusercontent.com/b33n-tect/map-viz/main/communes-67-bas-rhin.geojson"
-    url_68 = "https://raw.githubusercontent.com/b33n-tect/map-viz/main/communes-68-haut-rhin.geojson"
+    url_67 = "https://raw.githubusercontent.com/b33n-tech/map-viz/main/communes-67-bas-rhin.geojson"
+    url_68 = "https://raw.githubusercontent.com/b33n-tech/map-viz/main/communes-68-haut-rhin.geojson"
     gdf_67 = gpd.read_file(url_67)
     gdf_68 = gpd.read_file(url_68)
     gdf_67['code'] = gdf_67['code'].astype(str)
