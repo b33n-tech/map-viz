@@ -7,7 +7,7 @@ from branca.colormap import linear
 from streamlit_folium import st_folium
 
 st.set_page_config(layout="wide")
-st.title("Carte Alsace - design amélioré")
+st.title("Carte Alsace - fond blanc et contours conditionnels")
 
 @st.cache_data
 def load_communes_geojson():
@@ -40,7 +40,6 @@ if uploaded_file is not None:
 
     merged = gdf.merge(df[['Ville_norm', 'Niveau']], left_on='nom_norm', right_on='Ville_norm', how='left')
     merged['Niveau'] = merged['Niveau'].fillna(0)
-
     merged['Niveau_log'] = np.log1p(merged['Niveau'])
 
     palette_dict = {
@@ -52,19 +51,31 @@ if uploaded_file is not None:
     palette = st.selectbox("🎨 Palette de couleurs", list(palette_dict.keys()))
     n_classes = st.slider("📊 Nombre de niveaux", 2, 10, 6)
 
-    m = folium.Map(location=[48.5, 7.5], zoom_start=9, tiles="CartoDB Positron")
+    m = folium.Map(location=[48.5, 7.5], zoom_start=9, tiles=None)  # tiles=None pour fond blanc
 
     colormap = palette_dict[palette].scale(merged['Niveau_log'].min(), merged['Niveau_log'].max()).to_step(n=n_classes)
 
+    def style_function(feature):
+        niveau = feature["properties"]["Niveau"]
+        if niveau > 0:
+            color = "black"
+            weight = 1
+            fill_opacity = 0.8
+        else:
+            color = "#cccccc"
+            weight = 0.3
+            fill_opacity = 0.3
+        return {
+            "fillColor": colormap(feature["properties"]["Niveau_log"]),
+            "color": color,
+            "weight": weight,
+            "fillOpacity": fill_opacity,
+        }
+
     folium.GeoJson(
         merged,
-        style_function=lambda feature: {
-            "fillColor": colormap(feature["properties"]["Niveau_log"]),
-            "color": "#444444",
-            "weight": 0.3,
-            "fillOpacity": 0.8,
-        },
-        tooltip=folium.GeoJsonTooltip(fields=["nom"], aliases=["Ville"]),
+        style_function=style_function,
+        tooltip=folium.GeoJsonTooltip(fields=["nom", "Niveau"], aliases=["Ville", "Niveau"]),
     ).add_to(m)
 
     colormap.caption = "Niveau (échelle logarithmique)"
