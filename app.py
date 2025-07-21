@@ -11,7 +11,7 @@ st.title("🎨 Carte manuelle du Bas-Rhin")
 # Charger les communes du 67
 @st.cache_data
 def load_geojson():
-    url = "https://raw.githubusercontent.com/TON-UTILISATEUR/TON-REPO/main/communes-67-bas-rhin.geojson"
+    url = "https://raw.githubusercontent.com/b33n-tech/map-viz/main/communes-67-bas-rhin.geojson"
     return gpd.read_file(url)
 
 gdf = load_geojson()
