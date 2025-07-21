@@ -11,7 +11,7 @@ st.title("🎨 Carte interactive - Coloration manuelle des communes du Bas-Rhin"
 # ---- Charger GeoJSON depuis GitHub ----
 @st.cache_data
 def load_geojson():
-    url = "https://raw.githubusercontent.com/b33n-tech/map-viz/main/communes-67-bas-rhin.geojson"
+    url = "https://raw.githubusercontent.com/TON-UTILISATEUR-GITHUB/TON-REPO-GITHUB/main/communes-67-bas-rhin.geojson"
     return gpd.read_file(url)
 
 gdf = load_geojson()
@@ -28,8 +28,20 @@ for name in selected_communes:
     value = st.slider(f"🎛️ Intensité pour {name}", 0, 100, 50)
     custom_values[code] = value
 
-# ---- Palette et niveau ----
-available_palettes = ["YlOrRd", "YlGnBu", "OrRd", "PuBuGn", "BuPu", "Greens", "Blues", "Reds", "Purples"]
+# ---- Palette de couleurs fiable ----
+palette_dict = {
+    "YlOrRd": linear.YlOrRd_09,
+    "YlGnBu": linear.YlGnBu_09,
+    "OrRd": linear.OrRd_09,
+    "PuBuGn": linear.PuBuGn_09,
+    "BuPu": linear.BuPu_09,
+    "Greens": linear.Greens_09,
+    "Blues": linear.Blues_09,
+    "Reds": linear.Reds_09,
+    "Purples": linear.Purples_09
+}
+
+available_palettes = list(palette_dict.keys())
 palette = st.selectbox("🎨 Palette de couleurs", available_palettes)
 n_classes = st.slider("📊 Nombre de niveaux", 2, 15, 10)
 
@@ -39,12 +51,10 @@ gdf['valeur'] = gdf['code'].map(custom_values).fillna(0)
 # ---- Générer la carte ----
 m = folium.Map(location=[48.6, 7.6], zoom_start=9, tiles="cartodbpositron")
 
-try:
-    colormap_fn = getattr(linear, palette)
-    colormap = colormap_fn.scale(gdf['valeur'].min(), gdf['valeur'].max()).to_step(n=n_classes)
-except AttributeError:
-    st.error(f"Palette '{palette}' non disponible")
-    st.stop()
+colormap = palette_dict[palette].scale(
+    gdf['valeur'].min(),
+    gdf['valeur'].max()
+).to_step(n=n_classes)
 
 folium.GeoJson(
     gdf,
@@ -57,7 +67,7 @@ folium.GeoJson(
     tooltip=folium.GeoJsonTooltip(fields=["nom", "valeur"], aliases=["Commune", "Valeur choisie"]),
 ).add_to(m)
 
-colormap.caption = "Valeurs manuelles"
+colormap.caption = "Valeurs choisies"
 colormap.add_to(m)
 
 st_folium(m, width=1000, height=700)
