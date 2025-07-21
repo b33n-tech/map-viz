@@ -1,74 +1,57 @@
 import streamlit as st
-import pandas as pd
 import geopandas as gpd
 import folium
 from branca.colormap import linear
 from streamlit_folium import st_folium
 
-# Titre
-st.title("🗺️ Data Viz Carte - Alsace")
+# ---- CONFIG ----
+st.set_page_config(layout="wide")
+st.title("🎨 Carte manuelle du Bas-Rhin")
 
-# Upload de fichier de données utilisateur
-uploaded_file = st.file_uploader("Charge ton fichier CSV/XLSX (avec noms de communes ou codes INSEE)", type=["csv", "xlsx"])
-
-# Choix du nombre de classes
-n_classes = st.slider("Nombre de niveaux de couleur (intensité)", min_value=2, max_value=15, value=10)
-
-# Choix de la palette de couleurs
-palette = st.selectbox("Palette de couleurs", [
-    "YlOrRd", "YlGnBu", "OrRd", "PuBuGn", "BuPu", "Greens", "Blues", "Reds", "Purples"
-])
-
-# Charger le fond de carte GeoJSON de l'Alsace
+# Charger les communes du 67
 @st.cache_data
-def load_geojson_alsace():
-    url = "https://raw.githubusercontent.com/gregoiredavid/france-geojson/master/regions/alsace/departements-alsace.geojson"
+def load_geojson():
+    url = "https://raw.githubusercontent.com/TON-UTILISATEUR/TON-REPO/main/communes-67-bas-rhin.geojson"
     return gpd.read_file(url)
 
-geo_df = load_geojson_alsace()
+gdf = load_geojson()
+gdf['code'] = gdf['code'].astype(str)
 
-if uploaded_file:
-    # Lire la data
-    ext = uploaded_file.name.split(".")[-1]
-    df = pd.read_csv(uploaded_file) if ext == "csv" else pd.read_excel(uploaded_file)
+# Interface : choisir les communes à colorer
+communes = gdf[['nom', 'code']].sort_values('nom')
+selected_communes = st.multiselect("Choisis les communes à colorer :", communes['nom'])
 
-    st.write("Aperçu de tes données :")
-    st.dataframe(df.head())
+# Créer un dictionnaire {code: valeur}
+custom_values = {}
+for name in selected_communes:
+    code = communes[communes['nom'] == name]['code'].values[0]
+    value = st.slider(f"Intensité pour {name}", 0, 100, 50)
+    custom_values[code] = value
 
-    # Sélection des colonnes à mapper
-    merge_key = st.selectbox("Colonne utilisée pour relier aux communes (code INSEE ou nom)", df.columns)
-    value_col = st.selectbox("Colonne à visualiser (valeurs numériques)", df.select_dtypes(include='number').columns)
+# Palette
+palette = st.selectbox("Palette de couleurs", ["YlOrRd", "Viridis", "Blues", "Greens", "Reds", "Purples"])
+n_classes = st.slider("Nombre de niveaux", 2, 15, 10)
 
-    # Fusion avec le fond de carte
-    geo_df["code_insee"] = geo_df["code"].astype(str)
-    df[merge_key] = df[merge_key].astype(str)
-    merged = geo_df.merge(df, left_on="code_insee", right_on=merge_key)
+# Ajouter une colonne "valeur" pour la coloration
+gdf['valeur'] = gdf['code'].map(custom_values).fillna(0)
 
-    # Création de la carte
-    m = folium.Map(location=[48.5, 7.5], zoom_start=8, tiles="cartodbpositron")
+# Carte
+m = folium.Map(location=[48.6, 7.6], zoom_start=9, tiles="cartodbpositron")
+colormap = linear.__getattribute__(palette).scale(gdf['valeur'].min(), gdf['valeur'].max())
+colormap = colormap.to_step(n=n_classes)
 
-    # Création de la palette
-    colormap = linear.__getattribute__(palette).scale(merged[value_col].min(), merged[value_col].max())
-    colormap = colormap.to_step(n=n_classes)
+folium.GeoJson(
+    gdf,
+    style_function=lambda feature: {
+        "fillColor": colormap(feature["properties"]["valeur"]),
+        "color": "black",
+        "weight": 0.5,
+        "fillOpacity": 0.7,
+    },
+    tooltip=folium.GeoJsonTooltip(fields=["nom", "valeur"], aliases=["Commune", "Valeur"]),
+).add_to(m)
 
-    # Ajout des zones sur la carte
-    folium.GeoJson(
-        merged,
-        style_function=lambda feature: {
-            "fillColor": colormap(feature["properties"][value_col]),
-            "color": "black",
-            "weight": 0.5,
-            "dashArray": "5, 5",
-            "fillOpacity": 0.7,
-        },
-        tooltip=folium.GeoJsonTooltip(fields=[value_col, "nom"], aliases=["Valeur", "Commune"]),
-    ).add_to(m)
+colormap.caption = "Intensité choisie"
+colormap.add_to(m)
 
-    colormap.caption = f"Légende : {value_col}"
-    colormap.add_to(m)
-
-    # Afficher la carte dans Streamlit
-    st_folium(m, width=800, height=600)
-
-else:
-    st.info("💡 Charge un fichier de données pour commencer.")
+st_folium(m, width=1000, height=700)
