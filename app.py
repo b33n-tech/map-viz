@@ -11,7 +11,7 @@ st.title("🎨 Carte interactive - Coloration manuelle des communes du Bas-Rhin"
 # ---- Charger GeoJSON depuis GitHub ----
 @st.cache_data
 def load_geojson():
-    url = "https://raw.githubusercontent.com/TON-UTILISATEUR-GITHUB/TON-REPO-GITHUB/main/communes-67-bas-rhin.geojson"
+    url = "https://raw.githubusercontent.com/b33n-tech/map-viz/main/communes-67-bas-rhin.geojson"
     return gpd.read_file(url)
 
 gdf = load_geojson()
